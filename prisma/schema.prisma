@@ -1,0 +1,74 @@
+// TV Station schema — Koyeb-deployable, no storage, Nginx proxy
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Channel {
+  id          String   @id @default(cuid())
+  slug        String   @unique // used in the public stream URL: /stream/:slug
+  name        String
+  description String?
+  logoUrl     String?
+  category    String?
+  isLive      Boolean  @default(true)
+  // Fallback source to play when nothing is scheduled
+  fallbackSourceId String?
+  fallbackSource    Source?  @relation("ChannelFallback", fields: [fallbackSourceId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sources   Source[]   @relation("ChannelSources")
+  schedules Schedule[]
+}
+
+model Source {
+  id          String   @id @default(cuid())
+  channelId   String
+  channel     Channel  @relation("ChannelSources", fields: [channelId], references: [id], onDelete: Cascade)
+  // also used as a fallback target via Channel.fallbackSourceId
+  fallbackFor Channel[] @relation("ChannelFallback")
+
+  name        String
+  url         String // external URL (HLS .m3u8, .mp4, .mkv via Nginx, etc.)
+  type        String   @default("hls") // hls | mp4 | dash | proxy
+  duration    Int      @default(0) // seconds, 0 = live/infinite
+  description String?
+  thumbnail   String?
+  tags        String?  // comma-separated tags
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  schedules Schedule[]
+}
+
+model Schedule {
+  id          String   @id @default(cuid())
+  channelId   String
+  channel     Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sourceId    String
+  source      Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  name        String   // program name shown to viewers
+  // weekly schedule, 0 = Sunday ... 6 = Saturday; -1 = every day
+  dayOfWeek   Int      @default(-1)
+  startSec    Int      // seconds from 00:00 UTC, e.g. 14:30 = 14*3600 + 30*60
+  endSec      Int      // seconds from 00:00 UTC; if <= startSec, treated as next day
+  // for one-off broadcasts (optional). If set, dayOfWeek is ignored
+  startDate   DateTime?
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([channelId, dayOfWeek, startSec])
+  @@index([channelId, startDate])
+}
+
+model Setting {
+  key   String @id
+  value String
+}
