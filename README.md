@@ -107,3 +107,29 @@ sample channels & schedules.
   `/api/schedules`, `/api/nginx-config`, and `/api/seed`.
 * The viewer endpoints (`/stream/<slug>`, `/api/now-playing`, `/api/upcoming`)
   stay public — that's by design.
+
+## Troubleshooting — restart loops on Koyeb
+
+If your Koyeb instance keeps logging "Instance is stopping / SIGTERM received /
+Instance stopped" in a loop, the most likely causes are:
+
+1. **Port conflict from the old start.sh** — fixed in this version. The new
+   `start.sh` no longer starts Next.js twice; supervisord manages it from the
+   start, so port 3000 is never left bound.
+2. **OOM (out of memory)** — Koyeb free tier has 512MB. This version caps Node
+   at `--max-old-space-size=256`, sets Nginx to 1 worker / 256 connections, and
+   slows the reloader down to every 5 minutes. Together these keep the
+   container comfortably under 512MB.
+3. **Free tier inactivity scale-to-zero** — Koyeb's free tier scales instances
+   to zero after ~15 minutes of no incoming requests. To keep the channel
+   always-on, set up a free uptime monitor (e.g. UptimeRobot) that pings
+   `https://<your-app>.koyeb.app/healthz` every 5 minutes.
+4. **Volume not mounted** — if the SQLite DB at `/app/db` is on ephemeral
+   storage, every restart loses your channels. Make sure the Koyeb service has
+   a 1GB persistent volume mounted at `/app/db` (see `koyeb.yaml`).
+
+To debug on Koyeb:
+* Service → Logs tab — look for `OOMKilled` or `supervisord` errors.
+* Service → Settings → Resources — verify 512MB is enough; upgrade to a small
+  paid instance if you need more headroom.
+* Service → Settings → Health Check — must be HTTP GET `/healthz` on port 8080.
