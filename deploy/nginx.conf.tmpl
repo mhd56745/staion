@@ -1,13 +1,15 @@
-# Fallback nginx config — used if the Next.js app hasn't started yet
-# At runtime, /start.sh replaces this with a config generated from the app's
-# current channels & schedule (see /api/nginx-config).
-worker_processes auto;
-events { worker_connections 1024; }
+# Fallback nginx config — used at startup before Next.js is ready.
+# The reloader background job replaces this with a dynamic config built from
+# the live DB (see /api/nginx-config) once Next.js is up.
+worker_processes 1;
+events { worker_connections 256; }
 http {
   include       mime.types;
   default_type  application/octet-stream;
   sendfile      on;
-  keepalive_timeout 65;
+  keepalive_timeout 30;
+  access_log /dev/stdout;
+  error_log /dev/stderr;
   add_header Access-Control-Allow-Origin "*" always;
 
   server {
@@ -28,6 +30,7 @@ http {
       proxy_set_header X-Forwarded-Proto $scheme;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection "upgrade";
+      proxy_read_timeout 90s;
     }
   }
 }
