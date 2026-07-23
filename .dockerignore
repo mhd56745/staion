@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.gitignore
+dev.log
+server.log
+*.log
+download
+upload
+tests
+skills
+mini-services
+db
+.env.local
+.env.production
